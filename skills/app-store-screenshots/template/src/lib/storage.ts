@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STORAGE_KEY } from "./constants";
 import { DEFAULT_PROJECT } from "./defaults";
-import type { Device, ProjectState } from "./types";
+import { coerceLocalized } from "./locale";
+import type { Device, ProjectState, Slide } from "./types";
 
 const HISTORY_LIMIT = 50;
 // Coalesce rapid edits (typing, slider drags) into a single undo step.
@@ -10,15 +11,41 @@ const COALESCE_MS = 500;
 // Debounce file/localStorage writes — frequent enough to feel instant, infrequent enough not to thrash disk.
 const SAVE_DEBOUNCE_MS = 600;
 
-function mergeWithDefaults(parsed: Partial<ProjectState>): ProjectState {
+// Migrate pre-locale string label/headline into { en: value }.
+function migrateSlide(slide: Slide): Slide {
   return {
+    ...slide,
+    label: coerceLocalized(slide.label as unknown),
+    headline: coerceLocalized(slide.headline as unknown),
+  };
+}
+
+function mergeWithDefaults(parsed: Partial<ProjectState>): ProjectState {
+  const slidesByDevice = parsed.slidesByDevice
+    ? Object.fromEntries(
+        Object.entries(parsed.slidesByDevice).map(([device, slides]) => [
+          device,
+          (slides || []).map(migrateSlide),
+        ]),
+      )
+    : {};
+  const merged: ProjectState = {
     ...DEFAULT_PROJECT,
     ...parsed,
     slidesByDevice: {
       ...DEFAULT_PROJECT.slidesByDevice,
-      ...(parsed.slidesByDevice || {}),
-    },
+      ...slidesByDevice,
+    } as ProjectState["slidesByDevice"],
   };
+  // Clamp the active locale into the project's locale list so a stale
+  // `locale` (e.g. from a project that dropped languages) doesn't show blank.
+  if (!merged.locales || merged.locales.length === 0) {
+    merged.locales = [...DEFAULT_PROJECT.locales];
+  }
+  if (!merged.locales.includes(merged.locale)) {
+    merged.locale = merged.locales[0];
+  }
+  return merged;
 }
 
 function loadFromLocalStorage(): ProjectState | null {

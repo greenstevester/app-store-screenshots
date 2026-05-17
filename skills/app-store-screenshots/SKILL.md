@@ -254,7 +254,16 @@ Shrink the slide to ~160px wide (App Store search-result size). Squint. Can you 
 
 ## Step 4: Localization
 
-The editor exposes a locale dropdown; switching it changes the `locale` field on the project state. Screenshots are looked up under `public/screenshots/.../{locale}/...`, so put localized PNGs in matching folders.
+**Always confirm the language list with the user before scaffolding** — even if they didn't volunteer it. Ask: _"Should screenshots be localized? If yes, which locales? (e.g. en, de, es, pt, ja)."_ Default to English-only if they say no or skip.
+
+The project state file (`app-store-screenshots.json`) carries a `locales: string[]` field — the list of locale codes the project targets. The editor reads this to decide:
+- The locale dropdown in the toolbar is **hidden** when `locales.length <= 1`.
+- The dropdown's options come from this list (not a hardcoded set).
+- The **Export bundle** loops every locale in the list × every required size.
+
+**After scaffolding, edit `app-store-screenshots.json` to set `locales` to the user's chosen list, e.g.** `"locales": ["en", "de", "ja"]`. Also set `"locale": "en"` (or whichever is the source-of-truth language) so the editor opens on it.
+
+The editor stores headlines and labels per-locale on each slide — switch to a locale and type to fill it in; unfilled locales fall back to `en` at preview time. Screenshots are a single string per slide; put `{locale}` anywhere in the path and the editor substitutes the active locale at render and export (e.g. `/screenshots/iphone/{locale}/01.png`).
 
 - Don't literally translate — rewrite for the target market.
 - Re-check line breaks per locale; German/French/Portuguese often need shorter claims.
@@ -262,7 +271,9 @@ The editor exposes a locale dropdown; switching it changes the `locale` field on
 
 ## Step 5: Export Time
 
-Inside the editor, the user picks a device, picks a target size from the dropdown, and hits **Export all**. PNGs download with zero-padded numbered filenames. Repeat per device.
+Inside the editor, the user picks a device, then hits **Export bundle**. A single zip downloads with every required size × every project locale for that device, organized as `<platform>/<device>/<WxH>/<locale>/NN-<layout>.png`. Repeat per device.
+
+Project locales come from `app-store-screenshots.json` `locales` field — set during scaffolding (Step 4). Single-locale projects produce a flat per-size structure with just the one locale folder.
 
 If exports come out blank or with black screen rectangles:
 - Verify source screenshots are RGB (not RGBA). The template flattens via `objectFit: cover`, but truly transparent sources can still produce black regions.

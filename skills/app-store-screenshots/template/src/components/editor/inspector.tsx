@@ -4,13 +4,22 @@ import { ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, RotateCw } from
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { LAYOUT_HINT } from "@/lib/constants";
-import type { ElementId, ElementTransform, Slide } from "@/lib/types";
+import { LAYOUT_HINT, LAYOUT_LABEL } from "@/lib/constants";
+import { pickText, writeLocalized } from "@/lib/locale";
+import type { ElementId, ElementTransform, Slide, SlideLayout } from "@/lib/types";
 import { ScreenshotPicker } from "./screenshot-picker";
 
 type Props = {
   slide: Slide;
+  locale: string;
   selectedElementId: ElementId | null;
   onChange: (patch: Partial<Slide>) => void;
 };
@@ -21,25 +30,70 @@ const ELEMENT_LABEL: Record<ElementId, string> = {
   deviceSecondary: "Back device",
 };
 
-export function Inspector({ slide, selectedElementId, onChange }: Props) {
+export function Inspector({ slide, locale, selectedElementId, onChange }: Props) {
   const isFeatureGraphic = slide.layout === "feature-graphic";
   const isNoDevice = slide.layout === "no-device";
+  const localeLabel = slide.label?.[locale] ?? "";
+  const localeHeadline = slide.headline?.[locale] ?? "";
+  // When the active locale is empty, surface the fallback (typically en) as
+  // the placeholder so the user sees what they're translating from.
+  const headlineDefault = isFeatureGraphic ? "Your tagline." : "One idea\nper slide.";
+  const labelPlaceholder = localeLabel ? "FEATURE 01" : pickText(slide.label, locale) || "FEATURE 01";
+  const headlinePlaceholder = localeHeadline
+    ? headlineDefault
+    : pickText(slide.headline, locale) || headlineDefault;
+
+  function setLocaleField(key: "label" | "headline", value: string) {
+    onChange({ [key]: writeLocalized(slide[key], locale, value) } as Partial<Slide>);
+  }
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b p-3">
-        <h2 className="text-sm font-semibold">Slide settings</h2>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">Slide settings</h2>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            editing · {locale.toUpperCase()}
+          </span>
+        </div>
         <p className="text-xs text-muted-foreground">{LAYOUT_HINT[slide.layout]}</p>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Layout</Label>
+          <Select
+            value={slide.layout}
+            onValueChange={(layout) => {
+              const next = layout as SlideLayout;
+              onChange({
+                layout: next,
+                transforms: undefined,
+                screenshotSecondary:
+                  next === "two-devices" ? slide.screenshotSecondary || slide.screenshot : undefined,
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(LAYOUT_LABEL).map(([layout, label]) => (
+                <SelectItem key={layout} value={layout}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {!isFeatureGraphic && (
           <div className="space-y-1.5">
             <Label className="text-xs">Label</Label>
             <Input
-              value={slide.label}
-              onChange={(e) => onChange({ label: e.target.value })}
-              placeholder="FEATURE 01"
+              value={localeLabel}
+              onChange={(e) => setLocaleField("label", e.target.value)}
+              placeholder={labelPlaceholder}
             />
           </div>
         )}
@@ -50,10 +104,10 @@ export function Inspector({ slide, selectedElementId, onChange }: Props) {
             <span className="text-[10px] text-muted-foreground">newline = break</span>
           </div>
           <Textarea
-            value={slide.headline}
-            onChange={(e) => onChange({ headline: e.target.value })}
+            value={localeHeadline}
+            onChange={(e) => setLocaleField("headline", e.target.value)}
             rows={3}
-            placeholder={isFeatureGraphic ? "Your tagline." : "One idea\nper slide."}
+            placeholder={headlinePlaceholder}
           />
         </div>
 

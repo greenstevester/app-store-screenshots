@@ -5,6 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Copy, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LAYOUT_LABEL } from "@/lib/constants";
+import { pickText } from "@/lib/locale";
 import type { Device, Orientation, Slide, Theme } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SlideCanvas, getCanvas } from "./slide-canvas";
@@ -16,6 +17,7 @@ type Props = {
   device: Device;
   orientation: Orientation;
   theme: Theme;
+  locale: string;
   appName?: string;
   appIcon?: string;
   onSelect: () => void;
@@ -33,12 +35,15 @@ export function SlideThumb({
   device,
   orientation,
   theme,
+  locale,
   appName,
   appIcon,
   onSelect,
   onDelete,
   onDuplicate,
 }: Props) {
+  const headline = pickText(slide.headline, locale);
+  const label = pickText(slide.label, locale);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: slide.id,
   });
@@ -99,6 +104,7 @@ export function SlideThumb({
               device={device}
               orientation={orientation}
               theme={theme}
+              locale={locale}
               appName={appName}
               appIcon={appIcon}
               editable={false}
@@ -110,13 +116,13 @@ export function SlideThumb({
             {`Slide ${index + 1} · ${LAYOUT_LABEL[slide.layout]}`}
           </span>
           <span className="truncate text-sm font-medium leading-tight">
-            {slide.headline.split("\n")[0] || (
+            {headline.split("\n")[0] || (
               <em className="font-normal text-muted-foreground">Untitled</em>
             )}
           </span>
-          {slide.label ? (
+          {label ? (
             <span className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-              {slide.label}
+              {label}
             </span>
           ) : null}
         </div>

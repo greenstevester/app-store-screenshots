@@ -27,6 +27,7 @@ type Props = {
   device: Device;
   orientation: Orientation;
   theme: Theme;
+  locale: string;
   appName?: string;
   appIcon?: string;
   disabled?: boolean;
@@ -43,6 +44,7 @@ export function Sidebar({
   device,
   orientation,
   theme,
+  locale,
   appName,
   appIcon,
   disabled,
@@ -88,6 +90,7 @@ export function Sidebar({
                   device={device}
                   orientation={orientation}
                   theme={theme}
+                  locale={locale}
                   appName={appName}
                   appIcon={appIcon}
                   onSelect={() => onSelect(slide.id)}

@@ -20,6 +20,7 @@ import {
   tabletPW,
 } from "@/lib/constants";
 import { img } from "@/lib/image-cache";
+import { pickText, resolveScreenshot } from "@/lib/locale";
 import {
   AndroidPhone,
   AndroidTabletL,
@@ -90,6 +91,7 @@ type Props = {
   device: Device;
   orientation: Orientation;
   theme: Theme;
+  locale: string;
   appName?: string;
   appIcon?: string;
   editable?: boolean;
@@ -180,6 +182,7 @@ function Caption({
   cH,
   slide,
   theme,
+  locale,
   editable,
   edit,
   align = "center",
@@ -190,6 +193,7 @@ function Caption({
   cH: number;
   slide: Slide;
   theme: Theme;
+  locale: string;
   editable?: boolean;
   edit?: EditHandlers;
   align?: "center" | "left";
@@ -204,7 +208,7 @@ function Caption({
   return (
     <div style={{ textAlign: align, position: "relative", width: "100%" }}>
       <EditableText
-        value={slide.label}
+        value={pickText(slide.label, locale)}
         editable={editable}
         onChange={edit?.onLabelChange}
         onFocus={onFocus}
@@ -220,7 +224,7 @@ function Caption({
         }}
       />
       <EditableText
-        value={slide.headline}
+        value={pickText(slide.headline, locale)}
         editable={editable}
         multiline
         onChange={edit?.onHeadlineChange}
@@ -422,6 +426,7 @@ export function SlideCanvas({
   device,
   orientation,
   theme,
+  locale,
   appName,
   appIcon,
   editable,
@@ -431,6 +436,8 @@ export function SlideCanvas({
   hideEmpty,
 }: Props) {
   const { cW, cH } = getCanvas(device, orientation);
+  const screenshot = resolveScreenshot(slide.screenshot, locale);
+  const screenshotSecondary = resolveScreenshot(slide.screenshotSecondary, locale);
   const { Comp: Frame, widthFn, smallWidthFn } = getFrameForDevice(device, orientation);
   const inverted = !!slide.inverted;
   const bg = backgroundFor(theme, inverted);
@@ -492,7 +499,7 @@ export function SlideCanvas({
           <div>
             <div style={{ fontSize: cW * 0.06, fontWeight: 800, lineHeight: 1.05 }}>{appName || "App"}</div>
             <EditableText
-              value={slide.headline}
+              value={pickText(slide.headline, locale)}
               editable={editable}
               multiline
               onChange={edit?.onHeadlineChange}
@@ -524,6 +531,7 @@ export function SlideCanvas({
         cH={cH}
         slide={slide}
         theme={theme}
+        locale={locale}
         editable={editable}
         edit={edit}
         align={captionRect.align || "center"}
@@ -620,11 +628,11 @@ export function SlideCanvas({
         renderDevice(
           "deviceSecondary",
           secondaryRect,
-          slide.screenshotSecondary || slide.screenshot,
+          screenshotSecondary || screenshot,
           { opacity: 0.85 },
         )}
       {deviceRect &&
-        renderDevice("device", deviceRect, slide.screenshot)}
+        renderDevice("device", deviceRect, screenshot)}
       {renderCaption()}
     </div>
   );

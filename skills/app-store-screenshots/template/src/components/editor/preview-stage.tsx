@@ -16,6 +16,7 @@ type Props = {
   device: Device;
   orientation: Orientation;
   theme: Theme;
+  locale: string;
   appName?: string;
   appIcon?: string;
   selectedElementId: ElementId | null;
@@ -32,6 +33,7 @@ export function PreviewStage({
   device,
   orientation,
   theme,
+  locale,
   appName,
   appIcon,
   selectedElementId,
@@ -82,6 +84,7 @@ export function PreviewStage({
           device={device}
           orientation={orientation}
           theme={theme}
+          locale={locale}
           appName={appName}
           appIcon={appIcon}
           editable

@@ -20,26 +20,21 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DEVICE_LABEL,
-  getExportSizes,
-  LOCALES,
   supportsLandscape,
 } from "@/lib/constants";
 import { detectPlatform } from "@/lib/defaults";
-import type { Device, Orientation, ThemeId } from "@/lib/types";
+import type { Device, Orientation } from "@/lib/types";
 
 type Props = {
   appName: string;
   setAppName: (v: string) => void;
-  themeId: ThemeId;
-  setThemeId: (v: ThemeId) => void;
   locale: string;
   setLocale: (v: string) => void;
+  locales: string[];
   device: Device;
   setDevice: (v: Device) => void;
   orientation: Orientation;
   setOrientation: (v: Orientation) => void;
-  sizeIdx: number;
-  setSizeIdx: (i: number) => void;
   onExport: () => void;
   onResetAll: () => void;
   onResetDevice: () => void;
@@ -53,7 +48,6 @@ export function Toolbar(props: Props) {
   const platform = detectPlatform(props.device);
   const hasLandscape = supportsLandscape(props.device);
   const [resetOpen, setResetOpen] = React.useState(false);
-  const sizes = getExportSizes(props.device, props.orientation);
 
   // Track last device per platform so iOS/Android tabs preserve user's choice.
   const lastByPlatform = React.useRef<{ ios: Device; android: Device }>({
@@ -64,10 +58,7 @@ export function Toolbar(props: Props) {
     lastByPlatform.current[platform] = props.device;
   }, [platform, props.device]);
 
-  // Clamp sizeIdx so the controlled Select never falls out of range when the
-  // sizes array changes (e.g. switching device).
-  const safeSizeIdx = Math.min(props.sizeIdx, Math.max(0, sizes.length - 1));
-  const showLocale = LOCALES.length > 1;
+  const showLocale = props.locales.length > 1;
 
   const deviceLabel = DEVICE_LABEL[props.device];
 
@@ -150,7 +141,7 @@ export function Toolbar(props: Props) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {LOCALES.map((l) => (
+            {props.locales.map((l) => (
               <SelectItem key={l} value={l}>
                 {l.toUpperCase()}
               </SelectItem>
@@ -158,23 +149,6 @@ export function Toolbar(props: Props) {
           </SelectContent>
         </Select>
       )}
-
-      <Select
-        value={String(safeSizeIdx)}
-        onValueChange={(v) => props.setSizeIdx(Number(v))}
-        disabled={props.busy}
-      >
-        <SelectTrigger className="h-8 w-56 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {sizes.map((s, i) => (
-            <SelectItem key={i} value={String(i)}>
-              {s.label} — {s.w}×{s.h}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <SaveStatus savedAt={props.savedAt} saveError={props.saveError} />
@@ -190,9 +164,15 @@ export function Toolbar(props: Props) {
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
-        <Button onClick={props.onExport} disabled={!!props.exporting} size="sm" className="h-8">
+        <Button
+          onClick={props.onExport}
+          disabled={!!props.exporting}
+          size="sm"
+          className="h-8"
+          title="Export every size × locale for this device as a zip"
+        >
           <Download className="h-4 w-4" />
-          {props.exporting ? `Exporting ${props.exporting}` : "Export all"}
+          {props.exporting ? `Exporting ${props.exporting}` : "Export bundle"}
         </Button>
       </div>
 

@@ -1,45 +1,48 @@
+import { DEFAULT_LOCALE } from "./locale";
 import type { Device, ProjectState, Slide } from "./types";
 
 let _id = 0;
 export const nid = () => `s_${Date.now().toString(36)}_${(_id++).toString(36)}`;
+
+const en = (s: string) => ({ [DEFAULT_LOCALE]: s });
 
 function makeStarterSlides(): Slide[] {
   return [
     {
       id: nid(),
       layout: "hero",
-      label: "MEET YOUR APP",
-      headline: "Sell one\nidea per slide.",
+      label: en("MEET YOUR APP"),
+      headline: en("Sell one\nidea per slide."),
       screenshot: "",
     },
     {
       id: nid(),
       layout: "device-bottom",
-      label: "FEATURE 01",
-      headline: "Your headline\nlives here.",
+      label: en("FEATURE 01"),
+      headline: en("Your headline\nlives here."),
       screenshot: "",
     },
     {
       id: nid(),
       layout: "two-devices",
-      label: "FEATURE 02",
-      headline: "Show two\nscreens at once.",
+      label: en("FEATURE 02"),
+      headline: en("Show two\nscreens at once."),
       screenshot: "",
       screenshotSecondary: "",
     },
     {
       id: nid(),
       layout: "device-top",
-      label: "FEATURE 03",
-      headline: "Flip the contrast\nfor visual rhythm.",
+      label: en("FEATURE 03"),
+      headline: en("Flip the contrast\nfor visual rhythm."),
       screenshot: "",
       inverted: true,
     },
     {
       id: nid(),
       layout: "no-device",
-      label: "MORE",
-      headline: "And so\nmuch more.",
+      label: en("MORE"),
+      headline: en("And so\nmuch more."),
       screenshot: "",
     },
   ];
@@ -50,22 +53,22 @@ function ipadStarter(): Slide[] {
     {
       id: nid(),
       layout: "hero",
-      label: "MEET YOUR APP",
-      headline: "Made for\nthe big screen.",
+      label: en("MEET YOUR APP"),
+      headline: en("Made for\nthe big screen."),
       screenshot: "",
     },
     {
       id: nid(),
       layout: "device-bottom",
-      label: "FEATURE 01",
-      headline: "Built for\nfocus.",
+      label: en("FEATURE 01"),
+      headline: en("Built for\nfocus."),
       screenshot: "",
     },
     {
       id: nid(),
       layout: "device-top",
-      label: "FEATURE 02",
-      headline: "Always within reach.",
+      label: en("FEATURE 02"),
+      headline: en("Always within reach."),
       screenshot: "",
       inverted: true,
     },
@@ -77,15 +80,15 @@ function tabletStarter(kind: "7" | "10"): Slide[] {
     {
       id: nid(),
       layout: "hero",
-      label: "MEET YOUR APP",
-      headline: kind === "7" ? "Pocket-sized\npower." : "Made for\nthe big screen.",
+      label: en("MEET YOUR APP"),
+      headline: en(kind === "7" ? "Pocket-sized\npower." : "Made for\nthe big screen."),
       screenshot: "",
     },
     {
       id: nid(),
       layout: "split-landscape",
-      label: "FEATURE 01",
-      headline: "Wide canvas,\nbigger ideas.",
+      label: en("FEATURE 01"),
+      headline: en("Wide canvas,\nbigger ideas."),
       screenshot: "",
     },
   ];
@@ -96,8 +99,8 @@ function fgStarter(): Slide[] {
     {
       id: nid(),
       layout: "feature-graphic",
-      label: "",
-      headline: "Your tagline goes here.",
+      label: {},
+      headline: en("Your tagline goes here."),
       screenshot: "",
     },
   ];
@@ -106,7 +109,8 @@ function fgStarter(): Slide[] {
 export const DEFAULT_PROJECT: ProjectState = {
   appName: "My App",
   themeId: "clean-light",
-  locale: "en",
+  locales: [DEFAULT_LOCALE],
+  locale: DEFAULT_LOCALE,
   device: "iphone",
   orientation: "portrait",
   appIcon: "",
@@ -124,8 +128,8 @@ export function newSlide(layout: Slide["layout"] = "device-bottom"): Slide {
   return {
     id: nid(),
     layout,
-    label: "NEW",
-    headline: "Edit this\nheadline.",
+    label: en("NEW"),
+    headline: en("Edit this\nheadline."),
     screenshot: "",
   };
 }

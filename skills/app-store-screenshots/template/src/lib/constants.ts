@@ -124,9 +124,6 @@ export const THEMES: Record<ThemeId, Theme> = {
   },
 };
 
-export const LOCALES = ["en", "de", "es", "fr", "ja", "pt"] as const;
-export type Locale = typeof LOCALES[number];
-
 export const STORAGE_KEY = "app-store-screenshots:project:v1";
 
 export const DEVICE_LABEL: Record<Device, string> = {

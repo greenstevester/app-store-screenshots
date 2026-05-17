@@ -133,9 +133,10 @@ export function ScreenshotPicker({ label, value, onChange }: Props) {
           accept="image/png,image/jpeg"
           className="hidden"
           onChange={async (e) => {
-            const file = e.target.files?.[0];
+            const input = e.currentTarget;
+            const file = input.files?.[0];
             if (file) await handleFile(file);
-            e.currentTarget.value = "";
+            input.value = "";
           }}
         />
         <Button

@@ -32,14 +32,20 @@ export type ElementTransform = {
 
 export type ElementId = "caption" | "device" | "deviceSecondary";
 
+// Per-locale text keyed by locale code (e.g. "en", "de"). A locale is absent
+// if the user hasn't typed anything for it; renderers fall back to en (see
+// lib/locale.ts). The set of locales a project targets lives on
+// ProjectState.locales.
+export type LocalizedText = Partial<Record<string, string>>;
+
 export type Slide = {
   id: string;
   layout: SlideLayout;
-  label: string;       // tiny uppercase caption above headline
-  headline: string;    // multi-line; newlines are intentional
-  screenshot: string;  // path under /screenshots/ (or "" for none)
-  screenshotSecondary?: string; // for two-devices layout
-  inverted?: boolean;  // dark background variant
+  label: LocalizedText;       // tiny uppercase caption above headline, per locale
+  headline: LocalizedText;    // multi-line; newlines are intentional, per locale
+  screenshot: string;         // path under /screenshots/ — may contain {locale}
+  screenshotSecondary?: string; // for two-devices layout — may contain {locale}
+  inverted?: boolean;         // dark background variant
   // Per-element overrides; when present, replaces layout default placement.
   transforms?: Partial<Record<ElementId, ElementTransform>>;
 };
@@ -60,6 +66,9 @@ export type Theme = {
 export type ProjectState = {
   appName: string;
   themeId: ThemeId;
+  // Locales this project targets. Drives the toolbar dropdown and bulk export.
+  // Single-locale projects ship as ["en"] and hide the locale UI.
+  locales: string[];
   locale: string;
   device: Device;
   orientation: Orientation;

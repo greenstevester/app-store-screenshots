@@ -8,8 +8,9 @@ import {
   supportsLandscape,
   THEMES,
 } from "@/lib/constants";
-import { nid } from "@/lib/defaults";
+import { detectPlatform, nid } from "@/lib/defaults";
 import { preloadImages } from "@/lib/image-cache";
+import { resolveScreenshot, writeLocalized } from "@/lib/locale";
 import { useProject } from "@/lib/storage";
 import type { Device, ElementId, Slide } from "@/lib/types";
 import { Inspector } from "./inspector";
@@ -22,9 +23,9 @@ export function ScreenshotEditor() {
   const { state, setState, hydrated, savedAt, saveError, reset, resetDevice, undo, redo } = useProject();
   const [activeSlideId, setActiveSlideId] = React.useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = React.useState<ElementId | null>(null);
-  const [sizeIdx, setSizeIdx] = React.useState(0);
   const [exporting, setExporting] = React.useState<string | null>(null);
   const [ready, setReady] = React.useState(false);
+  const [exportLocaleOverride, setExportLocaleOverride] = React.useState<string | null>(null);
   const exportRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
 
   const currentSlides = state.slidesByDevice[state.device] || [];
@@ -44,10 +45,6 @@ export function ScreenshotEditor() {
   }, [hydrated, currentSlides, activeSlide]);
 
   React.useEffect(() => {
-    setSizeIdx(0);
-  }, [state.device, state.orientation]);
-
-  React.useEffect(() => {
     if (!supportsLandscape(state.device) && state.orientation !== "portrait") {
       setState((p) => ({ ...p, orientation: "portrait" }));
     }
@@ -57,15 +54,20 @@ export function ScreenshotEditor() {
     const paths = new Set<string>();
     paths.add("/mockup.png");
     if (state.appIcon) paths.add(state.appIcon);
-    for (const dev of Object.values(state.slidesByDevice)) {
-      for (const s of dev) {
-        if (s.screenshot && !s.screenshot.startsWith("data:")) paths.add(s.screenshot);
-        if (s.screenshotSecondary && !s.screenshotSecondary.startsWith("data:"))
-          paths.add(s.screenshotSecondary);
+    // Preload every locale variant so bulk export doesn't race image loads.
+    const allSlides: Slide[] = Object.values(state.slidesByDevice).flat();
+    for (const s of allSlides) {
+      for (const raw of [s.screenshot, s.screenshotSecondary]) {
+        if (!raw || raw.startsWith("data:")) continue;
+        if (raw.includes("{locale}")) {
+          for (const loc of state.locales) paths.add(resolveScreenshot(raw, loc));
+        } else {
+          paths.add(raw);
+        }
       }
     }
     return Array.from(paths).sort();
-  }, [state.slidesByDevice, state.appIcon]);
+  }, [state.slidesByDevice, state.appIcon, state.locales]);
   const assetSig = assetPaths.join("|");
 
   React.useEffect(() => {
@@ -168,6 +170,15 @@ export function ScreenshotEditor() {
     [setState],
   );
 
+  const patchLocalized = React.useCallback(
+    (slide: Slide, key: "label" | "headline", value: string) => {
+      patchSlide(slide.id, {
+        [key]: writeLocalized(slide[key], state.locale, value),
+      } as Partial<Slide>);
+    },
+    [patchSlide, state.locale],
+  );
+
   const duplicateSlide = React.useCallback(
     (id: string) => {
       let newId: string | null = null;
@@ -249,15 +260,26 @@ export function ScreenshotEditor() {
 
   // ---------- Export ----------
 
-  const currentSizes = getExportSizes(state.device, state.orientation);
+  // Wait two animation frames so React's render → browser layout/paint of the
+  // off-screen container settles before html-to-image snapshots it. One frame
+  // is occasionally not enough on slower machines.
+  const waitForPaint = () =>
+    new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
 
   async function exportAll() {
-    const size = currentSizes[sizeIdx];
-    if (!size) return;
     if (!currentSlides.length) {
       toast.error("No slides to export");
       return;
     }
+
+    const sizes = getExportSizes(state.device, state.orientation);
+    if (!sizes.length) {
+      toast.error("Nothing to export");
+      return;
+    }
+    const locales = state.locales;
 
     // Make sure custom fonts are loaded before snapshot so typography in PNG
     // matches what's on screen.
@@ -270,38 +292,51 @@ export function ScreenshotEditor() {
     }
 
     const { cW, cH } = getCanvas(state.device, state.orientation);
-    // Render the export wrapper as a uniform scale of the design canvas so
-    // smaller export sizes downscale instead of being cropped by html-to-image.
-    const scale = Math.min(size.w / cW, size.h / cH);
-
+    const platform = detectPlatform(state.device);
     const zip = new JSZip();
+    const totalUnits = sizes.length * locales.length * currentSlides.length;
+    let unit = 0;
     let okCount = 0;
     let failed = 0;
     const errors: string[] = [];
 
-    for (let i = 0; i < currentSlides.length; i++) {
-      const slide = currentSlides[i];
-      setExporting(`${i + 1}/${currentSlides.length}`);
-      const el = exportRefs.current[slide.id];
-      if (!el) {
-        failed += 1;
-        errors.push(`Slide ${i + 1}: render target missing`);
-        continue;
-      }
-      try {
-        const dataUrl = await captureSlide(el, size.w, size.h, scale);
-        const base64 = dataUrl.split(",")[1] || "";
-        const name = `${String(i + 1).padStart(2, "0")}-${slide.layout}-${state.device}-${state.locale}-${size.w}x${size.h}.png`;
-        zip.file(name, base64, { base64: true });
-        okCount += 1;
-      } catch (e) {
-        failed += 1;
-        const msg = e instanceof Error ? e.message : String(e);
-        errors.push(`Slide ${i + 1}: ${msg}`);
-        console.error("Export failed for slide", slide.id, e);
+    for (const locale of locales) {
+      setExportLocaleOverride(locale);
+      await waitForPaint();
+
+      for (const size of sizes) {
+        // Uniform downscale so smaller sizes shrink instead of getting cropped
+        // by html-to-image.
+        const scale = Math.min(size.w / cW, size.h / cH);
+
+        for (let i = 0; i < currentSlides.length; i++) {
+          const slide = currentSlides[i];
+          unit += 1;
+          setExporting(`${unit}/${totalUnits}`);
+          const el = exportRefs.current[slide.id];
+          if (!el) {
+            failed += 1;
+            errors.push(`${locale} ${size.w}×${size.h} slide ${i + 1}: render target missing`);
+            continue;
+          }
+          try {
+            const dataUrl = await captureSlide(el, size.w, size.h, scale);
+            const base64 = dataUrl.split(",")[1] || "";
+            const filename = `${String(i + 1).padStart(2, "0")}-${slide.layout}.png`;
+            const path = `${platform}/${state.device}/${size.w}x${size.h}/${locale}/${filename}`;
+            zip.file(path, base64, { base64: true });
+            okCount += 1;
+          } catch (e) {
+            failed += 1;
+            const msg = e instanceof Error ? e.message : String(e);
+            errors.push(`${locale} ${size.w}×${size.h} slide ${i + 1}: ${msg}`);
+            console.error("Export failed", { slideId: slide.id, locale, size }, e);
+          }
+        }
       }
     }
 
+    setExportLocaleOverride(null);
     setExporting(null);
 
     if (okCount > 0) {
@@ -310,7 +345,7 @@ export function ScreenshotEditor() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${slugify(state.appName)}-${state.device}-${state.locale}-${size.w}x${size.h}-${stamp()}.zip`;
+        a.download = `${slugify(state.appName)}-${platform}-${state.device}-${stamp()}.zip`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 5000);
       } catch (e) {
@@ -320,14 +355,15 @@ export function ScreenshotEditor() {
       }
     }
 
+    const summary = `${locales.length} locale${locales.length === 1 ? "" : "s"} × ${sizes.length} size${sizes.length === 1 ? "" : "s"}`;
     if (failed === 0) {
-      toast.success(`Exported ${okCount} slide${okCount === 1 ? "" : "s"} at ${size.w}×${size.h}`);
+      toast.success(`Exported ${okCount} PNGs (${summary})`);
     } else if (okCount === 0) {
-      toast.error(`All ${failed} slide(s) failed to export`, {
+      toast.error(`All ${failed} renders failed`, {
         description: errors.slice(0, 3).join("\n"),
       });
     } else {
-      toast.error(`${failed} of ${currentSlides.length} slide(s) failed`, {
+      toast.error(`${failed} of ${totalUnits} renders failed`, {
         description: errors.slice(0, 3).join("\n"),
       });
     }
@@ -391,21 +427,17 @@ export function ScreenshotEditor() {
       <Toolbar
         appName={state.appName}
         setAppName={(v) => setState((p) => ({ ...p, appName: v }))}
-        themeId={state.themeId}
-        setThemeId={(v) => setState((p) => ({ ...p, themeId: v }))}
         locale={state.locale}
         setLocale={(v) => setState((p) => ({ ...p, locale: v }))}
+        locales={state.locales}
         device={state.device}
         setDevice={(v) => setState((p) => ({ ...p, device: v }))}
         orientation={state.orientation}
         setOrientation={(v) => setState((p) => ({ ...p, orientation: v }))}
-        sizeIdx={sizeIdx}
-        setSizeIdx={setSizeIdx}
         onExport={exportAll}
         onResetAll={() => {
           reset();
           setActiveSlideId(null);
-          setSizeIdx(0);
           toast.success("Reset all devices to defaults");
         }}
         onResetDevice={() => {
@@ -427,6 +459,7 @@ export function ScreenshotEditor() {
             device={state.device}
             orientation={state.orientation}
             theme={theme}
+            locale={state.locale}
             appName={state.appName}
             appIcon={state.appIcon}
             disabled={busy}
@@ -445,11 +478,12 @@ export function ScreenshotEditor() {
               device={state.device}
               orientation={state.orientation}
               theme={theme}
+              locale={state.locale}
               appName={state.appName}
               appIcon={state.appIcon}
               selectedElementId={selectedElementId}
-              onLabelChange={(v) => patchSlide(activeSlide.id, { label: v })}
-              onHeadlineChange={(v) => patchSlide(activeSlide.id, { headline: v })}
+              onLabelChange={(v) => patchLocalized(activeSlide, "label", v)}
+              onHeadlineChange={(v) => patchLocalized(activeSlide, "headline", v)}
               onElementChange={(id, t) =>
                 patchSlide(activeSlide.id, {
                   transforms: { ...(activeSlide.transforms || {}), [id]: t },
@@ -469,6 +503,7 @@ export function ScreenshotEditor() {
           {activeSlide ? (
             <Inspector
               slide={activeSlide}
+              locale={state.locale}
               selectedElementId={selectedElementId}
               onChange={(patch) => patchSlide(activeSlide.id, patch)}
             />
@@ -505,6 +540,7 @@ export function ScreenshotEditor() {
               device={state.device}
               orientation={state.orientation}
               theme={theme}
+              locale={exportLocaleOverride ?? state.locale}
               appName={state.appName}
               appIcon={state.appIcon}
               hideEmpty
